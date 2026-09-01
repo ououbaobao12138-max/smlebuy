@@ -446,7 +446,7 @@ function App() {
       email,
       options: { emailRedirectTo: `${window.location.origin}/admin` },
     });
-    setLoginError(error ? "登录邮件发送失败，请稍后重试。" : "登录链接已发送，请打开最新邮件完成登录。");
+    setLoginError(error ? `登录邮件发送失败：${error.message}` : "登录链接已发送，请打开最新邮件完成登录。");
   };
 
   const signOutAdmin = async () => {
