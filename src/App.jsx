@@ -381,6 +381,38 @@ function App() {
     return [...new Set([...categories, ...dynamicCategories])];
   }, [inventory]);
 
+  const saveSharedData = async (nextShops, nextInventory) => {
+    localStorage.setItem("north-form-shops", JSON.stringify(nextShops));
+    localStorage.setItem("north-form-inventory", JSON.stringify(nextInventory));
+    const response = await fetch("/api/data", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ shops: nextShops, products: nextInventory }),
+    });
+    if (!response.ok) throw new Error("无法保存共享数据。");
+  };
+
+  useEffect(() => {
+    const loadSharedData = async () => {
+      try {
+        const response = await fetch("/api/data");
+        if (!response.ok) throw new Error("共享数据服务暂不可用。");
+        const data = await response.json();
+        if (!data.initialized && inventory.length) {
+          await saveSharedData(shops, inventory);
+        } else {
+          setShops(data.shops);
+          setInventory(data.products);
+          localStorage.setItem("north-form-shops", JSON.stringify(data.shops));
+          localStorage.setItem("north-form-inventory", JSON.stringify(data.products));
+        }
+      } catch (error) {
+        console.warn(error);
+      }
+    };
+    void loadSharedData();
+  }, []);
+
   useEffect(() => {
     const subdomain = getStoreSubdomain();
     if (!subdomain) return;
@@ -423,6 +455,10 @@ function App() {
   const updateInventory = (items) => {
     setInventory(items);
     localStorage.setItem("north-form-inventory", JSON.stringify(items));
+    void saveSharedData(shops, items).catch((error) => {
+      console.error(error);
+      setUploadMessage("共享数据保存失败，请稍后重试。");
+    });
   };
   const completeCategories = () => {
     const next = inventory.map((product) => ({ ...product, category: inferCategory(product) }));
@@ -734,6 +770,10 @@ function App() {
     const next = [...shops, { id: username, name: shopForm.name.trim(), username, password: shopForm.password, role: shopForm.role }];
     setShops(next);
     localStorage.setItem("north-form-shops", JSON.stringify(next));
+    void saveSharedData(next, inventory).catch((error) => {
+      console.error(error);
+      setUploadMessage("店铺保存失败，请稍后重试。");
+    });
     setShopForm({ name: "", username: "", password: "", role: "partner" });
     setShopModalOpen(false);
   };
@@ -743,6 +783,10 @@ function App() {
     const next = shops.filter((item) => item.id !== shop.id);
     setShops(next);
     localStorage.setItem("north-form-shops", JSON.stringify(next));
+    void saveSharedData(next, inventory).catch((error) => {
+      console.error(error);
+      setUploadMessage("店铺删除失败，请稍后重试。");
+    });
   };
   const openQcEditor = (product) => {
     setQcEditProduct(product);
