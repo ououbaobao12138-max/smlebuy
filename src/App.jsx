@@ -435,6 +435,20 @@ function App() {
     }
   };
 
+  const sendMagicLink = async () => {
+    const email = loginForm.email.trim();
+    if (!email) {
+      setLoginError("请先输入团队账号邮箱。");
+      return;
+    }
+    setLoginError("");
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: { emailRedirectTo: `${window.location.origin}/admin` },
+    });
+    setLoginError(error ? "登录邮件发送失败，请稍后重试。" : "登录链接已发送，请打开最新邮件完成登录。");
+  };
+
   const signOutAdmin = async () => {
     await supabase.auth.signOut();
     window.history.pushState({}, "", "/");
@@ -786,6 +800,7 @@ function App() {
           <label>密码<input type="password" autoComplete="current-password" required value={loginForm.password} onChange={(event) => setLoginForm({ ...loginForm, password: event.target.value })} /></label>
           {loginError && <p className="auth-error">{loginError}</p>}
           <button className="primary-action" type="submit">登录后台</button>
+          <button className="auth-link-button" type="button" onClick={sendMagicLink}>发送邮箱登录链接</button>
           <a href="/">返回商城</a>
         </form>
       </main>

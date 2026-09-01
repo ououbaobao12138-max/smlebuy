@@ -576,6 +576,14 @@ h1 {
   color: #a54d43;
   font-size: 12px;
 }
+.auth-link-button {
+  border: 1px solid #b46f52;
+  padding: 11px;
+  background: #fff;
+  color: #8c4f38;
+  font: 12px "DM Sans", sans-serif;
+  cursor: pointer;
+}
 .store-filter {
   display: flex;
   align-items: center;
