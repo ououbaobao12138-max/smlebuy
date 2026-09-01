@@ -1,0 +1,17 @@
+name = "smlebuy"
+type = "javascript"
+account_id = ""
+workers_dev = true
+route = ""
+zone_id = ""
+
+[env.production]
+name = "smlebuy"
+
+[build]
+command = "npm run build"
+cwd = "./"
+watch_paths = ["src/**/*.jsx", "src/**/*.js", "src/**/*.css"]
+
+[build.upload]
+format = "service-worker"
