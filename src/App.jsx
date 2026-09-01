@@ -752,7 +752,6 @@ function App() {
           <button className="locale" onClick={() => setLocaleOpen(true)}>
             {isAdmin ? "简体中文" : language} / {currency}
           </button>
-          {!isAdmin && <button onClick={() => { if(window.confirm("重置所有本地数据到初始状态？")) { localStorage.clear(); window.location.reload(); } }}>重置数据</button>}
           <label className="search">
             <span>{chinese ? "搜索商品..." : "Search products..."}</span>
             <input
