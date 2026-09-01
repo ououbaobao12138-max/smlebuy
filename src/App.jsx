@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import "./App.css";
 import { convertLink, SUPPORTED_AGENTS } from "../files/linkConverter.js";
 import * as XLSX from "xlsx";
+import { supabase } from "./supabaseClient.js";
 
 const products = [
   {
@@ -233,9 +234,11 @@ function App() {
   const [sort, setSort] = useState("Featured");
   const [query, setQuery] = useState("");
   const [saved, setSaved] = useState([]);
-  const [isAdmin, setIsAdmin] = useState(
-    () => window.location.pathname === "/admin",
-  );
+  const [viewPath, setViewPath] = useState(() => window.location.pathname);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [adminRole, setAdminRole] = useState("");
+  const [loginForm, setLoginForm] = useState({ email: "", password: "" });
+  const [loginError, setLoginError] = useState("");
   const [inventory, setInventory] = useState(() => {
     const stored = localStorage.getItem("north-form-inventory");
     return stored
@@ -286,6 +289,7 @@ function App() {
   const [displayAgents, setDisplayAgents] = useState(() => JSON.parse(localStorage.getItem("north-form-display-agents") || "null") || SUPPORTED_AGENTS.map((agent) => agent.value));
   const [affiliateCodes, setAffiliateCodes] = useState(() => JSON.parse(localStorage.getItem("north-form-affiliate-codes") || "null") || defaultAffiliateCodes);
   const [affiliateDraft, setAffiliateDraft] = useState(affiliateCodes);
+  const isAdmin = viewPath === "/admin";
 
   const languages = [
     "English",
@@ -392,6 +396,50 @@ function App() {
   const currentProductPage = Math.min(productPage, pageCount);
   const paginatedProducts = visibleProducts.slice((currentProductPage - 1) * PRODUCTS_PER_PAGE, currentProductPage * PRODUCTS_PER_PAGE);
   useEffect(() => { setProductPage(1); }, [activeCategory, query, sort]);
+
+  const getTeamRole = async (userId) => {
+    const { data } = await supabase
+      .from("team_members")
+      .select("role")
+      .eq("user_id", userId)
+      .maybeSingle();
+    return data?.role === "admin" || data?.role === "editor" ? data.role : "";
+  };
+
+  useEffect(() => {
+    const applySession = async (session) => {
+      const role = session ? await getTeamRole(session.user.id) : "";
+      setAdminRole(role);
+      setAuthLoading(false);
+    };
+
+    supabase.auth.getSession().then(({ data }) => applySession(data.session));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
+      void applySession(session);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const handleAdminLogin = async (event) => {
+    event.preventDefault();
+    setLoginError("");
+    const { data, error } = await supabase.auth.signInWithPassword(loginForm);
+    if (error) {
+      setLoginError("邮箱或密码不正确。");
+      return;
+    }
+    const role = await getTeamRole(data.user.id);
+    if (!role) {
+      await supabase.auth.signOut();
+      setLoginError("该账号没有后台访问权限。");
+    }
+  };
+
+  const signOutAdmin = async () => {
+    await supabase.auth.signOut();
+    window.history.pushState({}, "", "/");
+    setViewPath("/");
+  };
 
   const toggleSaved = (id) =>
     setSaved((items) =>
@@ -643,7 +691,7 @@ function App() {
   );
   const switchView = (admin) => {
     window.history.pushState({}, "", admin ? "/admin" : "/");
-    setIsAdmin(admin);
+    setViewPath(admin ? "/admin" : "/");
   };
   const openProduct = (product) => setSelectedProduct(product);
   const agentUrlFor = (product, agent) =>
@@ -723,6 +771,27 @@ function App() {
     console.log("分页产品:", paginatedProducts);
   }, [inventory, visibleProducts, paginatedProducts]);
 
+  if (isAdmin && authLoading) {
+    return <main className="auth-page"><p>正在验证团队账号...</p></main>;
+  }
+
+  if (isAdmin && !adminRole) {
+    return (
+      <main className="auth-page">
+        <form className="auth-card" onSubmit={handleAdminLogin}>
+          <p className="eyebrow">SMLEBUY / 团队后台</p>
+          <h1>团队账号登录</h1>
+          <p>仅已授权的管理员和编辑者可以访问商品管理后台。</p>
+          <label>邮箱<input type="email" autoComplete="email" required value={loginForm.email} onChange={(event) => setLoginForm({ ...loginForm, email: event.target.value })} /></label>
+          <label>密码<input type="password" autoComplete="current-password" required value={loginForm.password} onChange={(event) => setLoginForm({ ...loginForm, password: event.target.value })} /></label>
+          {loginError && <p className="auth-error">{loginError}</p>}
+          <button className="primary-action" type="submit">登录后台</button>
+          <a href="/">返回商城</a>
+        </form>
+      </main>
+    );
+  }
+
   return (
     <div className="storefront">
       <header className="site-header">
@@ -741,6 +810,7 @@ function App() {
           <button className="locale" onClick={() => setLocaleOpen(true)}>
             {isAdmin ? "简体中文" : language} / {currency}
           </button>
+          {isAdmin && <button className="locale" onClick={signOutAdmin}>退出登录</button>}
           {!isAdmin && <button onClick={() => { if(window.confirm("重置所有本地数据到初始状态？")) { localStorage.clear(); window.location.reload(); } }}>重置数据</button>}
           <label className="search">
             <span>{chinese ? "搜索商品..." : "Search products..."}</span>
@@ -1056,23 +1126,14 @@ function App() {
             <section className="accounts-section">
               <div className="table-heading">
                 <div>
-                  <p className="eyebrow">
-                    {chinese ? "权限 / 3 位成员" : "Access / 03 members"}
-                  </p>
+                  <p className="eyebrow">权限 / Supabase Auth</p>
                   <h2>{chinese ? "团队账号" : "Team accounts"}</h2>
                 </div>
-                <button className="primary-action" onClick={() => setInviteOpen(true)}>
-                  + {chinese ? "邀请成员" : "Invite member"}
-                </button>
               </div>
-              <div className="account-list">
-                <div className="account-row account-label">
-                  <span>{chinese ? "成员" : "Member"}</span>
-                  <span>{chinese ? "角色" : "Role"}</span>
-                  <span>{chinese ? "最近活跃" : "Last active"}</span>
-                  <span>{chinese ? "权限" : "Access"}</span>
-                </div>
-                {accounts.map((account) => <div className="account-row" key={account.id}><span><b>{account.email}</b><small>{account.owner ? (chinese ? "所有者账号" : "Owner account") : account.title}</small></span><span>{chinese ? ({ Owner: "所有者", Editor: "编辑者", Viewer: "查看者" }[account.role] || account.role) : account.role}</span><span>{chinese ? account.lastActive : account.lastActive}</span><i className={account.owner || account.role === "Editor" ? "live" : "draft"}>{chinese ? account.access : account.access}</i>{!account.owner && <button className="delete-button" onClick={() => removeAccount(account)}>删除</button>}</div>)}
+              <div className="affiliate-panel">
+                <h3>账号由 Supabase 管理</h3>
+                <p>在 Supabase 的 Authentication &gt; Users 创建成员账号后，将该成员的用户 UUID 添加到 team_members 表，并分配 admin 或 editor 角色。</p>
+                <p>只有已分配角色的团队成员能登录此后台；成员权限不保存在浏览器中。</p>
               </div>
             </section>
           )}

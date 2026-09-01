@@ -532,6 +532,50 @@ h1 {
   overflow: hidden;
   background: #fff;
 }
+.auth-page {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: 24px;
+  background: #f5f3ee;
+}
+.auth-card {
+  display: grid;
+  width: min(420px, 100%);
+  gap: 14px;
+  border: 1px solid #d7d4cd;
+  padding: 34px;
+  background: #fff;
+}
+.auth-card h1 {
+  font-size: 40px;
+}
+.auth-card > p:not(.eyebrow) {
+  margin: 0 0 10px;
+  color: #64645f;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.auth-card label {
+  display: grid;
+  gap: 7px;
+  font: 11px monospace;
+}
+.auth-card input {
+  border: 1px solid #c9c6bf;
+  padding: 11px;
+  font: 14px "DM Sans", sans-serif;
+}
+.auth-card a {
+  color: #555;
+  font-size: 12px;
+  text-align: center;
+}
+.auth-error {
+  margin: 0;
+  color: #a54d43;
+  font-size: 12px;
+}
 .store-filter {
   display: flex;
   align-items: center;
