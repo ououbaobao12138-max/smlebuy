@@ -273,7 +273,13 @@ function App() {
   const [qcEditProduct, setQcEditProduct] = useState(null);
   const [qcEditForm, setQcEditForm] = useState({ qcAvailable: false, qcPhotos: "" });
   const [shopForm, setShopForm] = useState({ name: "", username: "", password: "", role: "partner" });
-  const [shops, setShops] = useState(() => JSON.parse(localStorage.getItem("north-form-shops") || "null") || [{ id: "main", name: "North / Form", username: "主店账号", role: "main", owner: true }]);
+  const [shops, setShops] = useState(() => {
+    const storedShops = JSON.parse(localStorage.getItem("north-form-shops") || "null");
+    const mainShop = { id: "main", name: "smlebuy", username: "主店账号", role: "main", owner: true };
+    if (!storedShops) return [mainShop];
+    const otherShops = storedShops.filter((shop) => shop.id !== "main" && shop.name.toLowerCase() !== "smlebuy");
+    return [mainShop, ...otherShops];
+  });
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteForm, setInviteForm] = useState({ email: "", role: "Editor" });
   const [accounts, setAccounts] = useState(() => JSON.parse(localStorage.getItem("north-form-accounts") || "null") || [
@@ -711,7 +717,13 @@ function App() {
   const saveQcEdit = (event) => {
     event.preventDefault();
     const qcPhotos = splitImageSources(qcEditForm.qcPhotos).filter(isImageSource);
-    updateInventory(inventory.map((item) => item.id === qcEditProduct.id ? { ...item, qcAvailable: qcEditForm.qcAvailable, qcPhotos } : item));
+    const productImages = new Set(getProductImages(qcEditProduct));
+    updateInventory(inventory.map((item) => {
+      const sharesProductImage = getProductImages(item).some((image) => productImages.has(image));
+      return sharesProductImage
+        ? { ...item, qcAvailable: qcEditForm.qcAvailable, qcPhotos }
+        : item;
+    }));
     setQcEditProduct(null);
   };
 
