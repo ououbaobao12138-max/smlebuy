@@ -268,6 +268,7 @@ function App() {
   const [bulkCategory, setBulkCategory] = useState("Shoes");
   const [selectedStore, setSelectedStore] = useState("");
   const [browseShopId, setBrowseShopId] = useState("all");
+  const [storefrontShopId, setStorefrontShopId] = useState(() => new URLSearchParams(window.location.search).get("shop") || "main");
   const [productPage, setProductPage] = useState(1);
   const [shopModalOpen, setShopModalOpen] = useState(false);
   const [qcEditProduct, setQcEditProduct] = useState(null);
@@ -372,9 +373,10 @@ function App() {
   }, [inventory]);
 
   const visibleProducts = useMemo(() => {
+    const visibleShopId = isAdmin ? browseShopId : storefrontShopId;
     const filtered = inventory.filter((product) => {
       if (product.status === "Draft") return false;
-      if (browseShopId !== "all" && (product.shopId || "main") !== browseShopId) return false;
+      if (visibleShopId !== "all" && (product.shopId || "main") !== visibleShopId) return false;
       const targetCategory = categoryMap[activeCategory] || activeCategory;
       const matchesCategory =
         targetCategory === "All pieces" ||
@@ -392,7 +394,7 @@ function App() {
       if (sort === "Price: high") return b.price - a.price;
       return a.id - b.id;
     });
-  }, [activeCategory, browseShopId, inventory, query, sort]);
+  }, [activeCategory, browseShopId, inventory, isAdmin, query, sort, storefrontShopId]);
   const pageCount = Math.max(1, Math.ceil(visibleProducts.length / PRODUCTS_PER_PAGE));
   const currentProductPage = Math.min(productPage, pageCount);
   const paginatedProducts = visibleProducts.slice((currentProductPage - 1) * PRODUCTS_PER_PAGE, currentProductPage * PRODUCTS_PER_PAGE);
@@ -649,6 +651,13 @@ function App() {
   const switchView = (admin) => {
     window.history.pushState({}, "", admin ? "/admin" : "/");
     setViewPath(admin ? "/admin" : "/");
+  };
+  const selectStorefrontShop = (shopId) => {
+    const url = new URL(window.location.href);
+    if (shopId === "main") url.searchParams.delete("shop");
+    else url.searchParams.set("shop", shopId);
+    window.history.replaceState({}, "", `${url.pathname}${url.search}`);
+    setStorefrontShopId(shopId);
   };
   const openProduct = (product) => setSelectedProduct(product);
   const agentUrlFor = (product, agent) =>
@@ -1080,6 +1089,12 @@ function App() {
         </main>
       ) : (
         <main id="shop">
+          <label className="store-filter">
+            {chinese ? "店铺" : "Store"}
+            <select value={storefrontShopId} onChange={(event) => selectStorefrontShop(event.target.value)}>
+              {shops.map((shop) => <option value={shop.id} key={shop.id}>{shop.name}{shop.owner ? (chinese ? "（主店）" : " (Main)") : ""}</option>)}
+            </select>
+          </label>
           <div className="toolbar">
             <div className="categories">
               {frontendCategories.map((category) => (
