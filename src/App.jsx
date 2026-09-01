@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import "./App.css";
 import { convertLink, SUPPORTED_AGENTS } from "../files/linkConverter.js";
 import * as XLSX from "xlsx";
-import { supabase } from "./supabaseClient.js";
 
 const products = [
   {
@@ -235,10 +234,6 @@ function App() {
   const [query, setQuery] = useState("");
   const [saved, setSaved] = useState([]);
   const [viewPath, setViewPath] = useState(() => window.location.pathname);
-  const [authLoading, setAuthLoading] = useState(true);
-  const [adminRole, setAdminRole] = useState("");
-  const [loginForm, setLoginForm] = useState({ email: "", password: "" });
-  const [loginError, setLoginError] = useState("");
   const [inventory, setInventory] = useState(() => {
     const stored = localStorage.getItem("north-form-inventory");
     return stored
@@ -396,64 +391,6 @@ function App() {
   const currentProductPage = Math.min(productPage, pageCount);
   const paginatedProducts = visibleProducts.slice((currentProductPage - 1) * PRODUCTS_PER_PAGE, currentProductPage * PRODUCTS_PER_PAGE);
   useEffect(() => { setProductPage(1); }, [activeCategory, query, sort]);
-
-  const getTeamRole = async (userId) => {
-    const { data } = await supabase
-      .from("team_members")
-      .select("role")
-      .eq("user_id", userId)
-      .maybeSingle();
-    return data?.role === "admin" || data?.role === "editor" ? data.role : "";
-  };
-
-  useEffect(() => {
-    const applySession = async (session) => {
-      const role = session ? await getTeamRole(session.user.id) : "";
-      setAdminRole(role);
-      setAuthLoading(false);
-    };
-
-    supabase.auth.getSession().then(({ data }) => applySession(data.session));
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
-      void applySession(session);
-    });
-    return () => subscription.unsubscribe();
-  }, []);
-
-  const handleAdminLogin = async (event) => {
-    event.preventDefault();
-    setLoginError("");
-    const { data, error } = await supabase.auth.signInWithPassword(loginForm);
-    if (error) {
-      setLoginError("邮箱或密码不正确。");
-      return;
-    }
-    const role = await getTeamRole(data.user.id);
-    if (!role) {
-      await supabase.auth.signOut();
-      setLoginError("该账号没有后台访问权限。");
-    }
-  };
-
-  const sendMagicLink = async () => {
-    const email = loginForm.email.trim();
-    if (!email) {
-      setLoginError("请先输入团队账号邮箱。");
-      return;
-    }
-    setLoginError("");
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: { emailRedirectTo: `${window.location.origin}/admin` },
-    });
-    setLoginError(error ? `登录邮件发送失败：${error.message}` : "登录链接已发送，请打开最新邮件完成登录。");
-  };
-
-  const signOutAdmin = async () => {
-    await supabase.auth.signOut();
-    window.history.pushState({}, "", "/");
-    setViewPath("/");
-  };
 
   const toggleSaved = (id) =>
     setSaved((items) =>
@@ -785,28 +722,6 @@ function App() {
     console.log("分页产品:", paginatedProducts);
   }, [inventory, visibleProducts, paginatedProducts]);
 
-  if (isAdmin && authLoading) {
-    return <main className="auth-page"><p>正在验证团队账号...</p></main>;
-  }
-
-  if (isAdmin && !adminRole) {
-    return (
-      <main className="auth-page">
-        <form className="auth-card" onSubmit={handleAdminLogin}>
-          <p className="eyebrow">SMLEBUY / 团队后台</p>
-          <h1>团队账号登录</h1>
-          <p>仅已授权的管理员和编辑者可以访问商品管理后台。</p>
-          <label>邮箱<input type="email" autoComplete="email" required value={loginForm.email} onChange={(event) => setLoginForm({ ...loginForm, email: event.target.value })} /></label>
-          <label>密码<input type="password" autoComplete="current-password" required value={loginForm.password} onChange={(event) => setLoginForm({ ...loginForm, password: event.target.value })} /></label>
-          {loginError && <p className="auth-error">{loginError}</p>}
-          <button className="primary-action" type="submit">登录后台</button>
-          <button className="auth-link-button" type="button" onClick={sendMagicLink}>发送邮箱登录链接</button>
-          <a href="/">返回商城</a>
-        </form>
-      </main>
-    );
-  }
-
   return (
     <div className="storefront">
       <header className="site-header">
@@ -825,7 +740,6 @@ function App() {
           <button className="locale" onClick={() => setLocaleOpen(true)}>
             {isAdmin ? "简体中文" : language} / {currency}
           </button>
-          {isAdmin && <button className="locale" onClick={signOutAdmin}>退出登录</button>}
           {!isAdmin && <button onClick={() => { if(window.confirm("重置所有本地数据到初始状态？")) { localStorage.clear(); window.location.reload(); } }}>重置数据</button>}
           <label className="search">
             <span>{chinese ? "搜索商品..." : "Search products..."}</span>
