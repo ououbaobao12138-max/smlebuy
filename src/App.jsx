@@ -227,6 +227,15 @@ const formatProductPrice = (product, currency) => {
   return formatPrice(amount, currency);
 };
 const PRODUCTS_PER_PAGE = 30;
+const STOREFRONT_DOMAIN = "xsomsiadd.net";
+
+const getStoreSubdomain = () => {
+  const hostname = window.location.hostname.toLowerCase();
+  const suffix = `.${STOREFRONT_DOMAIN}`;
+  if (!hostname.endsWith(suffix)) return "";
+  const subdomain = hostname.slice(0, -suffix.length);
+  return subdomain === "www" ? "" : subdomain;
+};
 
 function App() {
   const [activeCategory, setActiveCategory] = useState("All products");
@@ -372,11 +381,18 @@ function App() {
     return [...new Set([...categories, ...dynamicCategories])];
   }, [inventory]);
 
+  useEffect(() => {
+    const subdomain = getStoreSubdomain();
+    if (!subdomain) return;
+    const matchedShop = shops.find((shop) => String(shop.username || "").toLowerCase() === subdomain);
+    if (matchedShop) setStorefrontShopId(String(matchedShop.id));
+  }, [shops]);
+
   const visibleProducts = useMemo(() => {
     const visibleShopId = isAdmin ? browseShopId : storefrontShopId;
     const filtered = inventory.filter((product) => {
       if (product.status === "Draft") return false;
-      if (visibleShopId !== "all" && (product.shopId || "main") !== visibleShopId) return false;
+      if (visibleShopId !== "all" && String(product.shopId || "main") !== String(visibleShopId)) return false;
       const targetCategory = categoryMap[activeCategory] || activeCategory;
       const matchesCategory =
         targetCategory === "All pieces" ||
@@ -706,7 +722,16 @@ function App() {
   const addShop = (event) => {
     event.preventDefault();
     if (!shopForm.name.trim() || !shopForm.username.trim() || !shopForm.password.trim()) return;
-    const next = [...shops, { id: Date.now(), name: shopForm.name.trim(), username: shopForm.username.trim(), password: shopForm.password, role: shopForm.role }];
+    const username = shopForm.username.trim().toLowerCase();
+    if (!/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(username)) {
+      setUploadMessage("店铺子域名只能使用英文小写字母、数字和短横线。");
+      return;
+    }
+    if (shops.some((shop) => String(shop.username || "").toLowerCase() === username)) {
+      setUploadMessage("该店铺子域名已被使用，请更换一个。");
+      return;
+    }
+    const next = [...shops, { id: username, name: shopForm.name.trim(), username, password: shopForm.password, role: shopForm.role }];
     setShops(next);
     localStorage.setItem("north-form-shops", JSON.stringify(next));
     setShopForm({ name: "", username: "", password: "", role: "partner" });
@@ -1069,7 +1094,7 @@ function App() {
           ) : adminTab === "shops" ? (
             <section className="accounts-section shops-section">
               <div className="table-heading"><div><p className="eyebrow">商店管理 / {shops.length} 家店铺</p><h2>主店与合作店铺</h2></div><button className="primary-action" onClick={() => setShopModalOpen(true)}>+ 添加合作店铺</button></div>
-              <div className="account-list"><div className="account-row account-label"><span>店铺</span><span>用户名 / 域名</span><span>类型</span><span>状态</span><span>操作</span></div>{shops.map((shop) => <div className="account-row" key={shop.id}><span><b>{shop.name}</b><small>{shop.owner ? "主店" : "合作店铺"}</small></span><span>{shop.username}</span><span>{shop.owner ? "主店" : "合作店"}</span><i className="live">正常</i>{!shop.owner && <button className="delete-button" onClick={() => removeShop(shop)}>删除</button>}</div>)}</div>
+              <div className="account-list"><div className="account-row account-label"><span>店铺</span><span>访问域名</span><span>类型</span><span>状态</span><span>操作</span></div>{shops.map((shop) => <div className="account-row" key={shop.id}><span><b>{shop.name}</b><small>{shop.owner ? "主店" : "合作店铺"}</small></span><span>{shop.owner ? STOREFRONT_DOMAIN : `${shop.username}.${STOREFRONT_DOMAIN}`}</span><span>{shop.owner ? "主店" : "合作店"}</span><i className="live">正常</i>{!shop.owner && <button className="delete-button" onClick={() => removeShop(shop)}>删除</button>}</div>)}</div>
             </section>
           ) : (
             <section className="accounts-section">
@@ -1089,12 +1114,6 @@ function App() {
         </main>
       ) : (
         <main id="shop">
-          <label className="store-filter">
-            {chinese ? "店铺" : "Store"}
-            <select value={storefrontShopId} onChange={(event) => selectStorefrontShop(event.target.value)}>
-              {shops.map((shop) => <option value={shop.id} key={shop.id}>{shop.name}{shop.owner ? (chinese ? "（主店）" : " (Main)") : ""}</option>)}
-            </select>
-          </label>
           <div className="toolbar">
             <div className="categories">
               {frontendCategories.map((category) => (
@@ -1313,7 +1332,7 @@ function App() {
           </form>
         </div>
       )}
-      {shopModalOpen && <div className="modal-overlay" onClick={() => setShopModalOpen(false)}><form className="product-modal" onSubmit={addShop} onClick={(event) => event.stopPropagation()}><div className="modal-heading"><h2>创建合作店铺</h2><button type="button" onClick={() => setShopModalOpen(false)}>x</button></div><label>店铺名称<input required value={shopForm.name} onChange={(event) => setShopForm({ ...shopForm, name: event.target.value })} placeholder="例如：PINK" /></label><label>用户名（域名对应）<input required value={shopForm.username} onChange={(event) => setShopForm({ ...shopForm, username: event.target.value })} placeholder="例如：pink.smlebuy" /></label><label>密码<input required type="password" value={shopForm.password} onChange={(event) => setShopForm({ ...shopForm, password: event.target.value })} placeholder="输入店铺密码" /></label><label>角色<select value={shopForm.role} onChange={(event) => setShopForm({ ...shopForm, role: event.target.value })}><option value="partner">合作客（可上架产品）</option><option value="admin">管理员（可管理所有功能）</option></select></label><button className="primary-action" type="submit">创建店铺</button></form></div>}
+      {shopModalOpen && <div className="modal-overlay" onClick={() => setShopModalOpen(false)}><form className="product-modal" onSubmit={addShop} onClick={(event) => event.stopPropagation()}><div className="modal-heading"><h2>创建合作店铺</h2><button type="button" onClick={() => setShopModalOpen(false)}>x</button></div><label>店铺名称<input required value={shopForm.name} onChange={(event) => setShopForm({ ...shopForm, name: event.target.value })} placeholder="例如：PINK" /></label><label>店铺子域名<input required value={shopForm.username} onChange={(event) => setShopForm({ ...shopForm, username: event.target.value.toLowerCase() })} placeholder="例如：pink" /><small>访问地址：pink.xsomsiadd.net</small></label><label>密码<input required type="password" value={shopForm.password} onChange={(event) => setShopForm({ ...shopForm, password: event.target.value })} placeholder="输入店铺密码" /></label><label>角色<select value={shopForm.role} onChange={(event) => setShopForm({ ...shopForm, role: event.target.value })}><option value="partner">合作客（可上架产品）</option><option value="admin">管理员（可管理所有功能）</option></select></label><button className="primary-action" type="submit">创建店铺</button></form></div>}
       {qcEditProduct && <div className="modal-overlay" onClick={() => setQcEditProduct(null)}><form className="product-modal" onSubmit={saveQcEdit} onClick={(event) => event.stopPropagation()}><div className="modal-heading"><h2>设置 QC</h2><button type="button" onClick={() => setQcEditProduct(null)}>x</button></div><p className="qc-product-name">{qcEditProduct.name}</p><label className="qc-setting"><span><input type="checkbox" checked={qcEditForm.qcAvailable} onChange={(event) => setQcEditForm({ ...qcEditForm, qcAvailable: event.target.checked })} /> 显示 QC AVAILABLE</span></label><label>选择本地 QC 图片<input type="file" accept="image/*" multiple onChange={appendQcFiles} /></label>{splitImageSources(qcEditForm.qcPhotos).filter(isImageSource).length > 0 && <div className="qc-edit-preview">{splitImageSources(qcEditForm.qcPhotos).filter(isImageSource).map((image) => <img src={image} alt="QC 预览" key={image} />)}</div>}<label>或填写 QC 图片链接<textarea value={qcEditForm.qcPhotos} onChange={(event) => setQcEditForm({ ...qcEditForm, qcPhotos: event.target.value })} placeholder="每行一张，或使用分号 ; 分隔" /></label><small className="qc-help">选择本地图片后会自动开启 QC，并同步显示到前台商品详情页。</small><button className="primary-action" type="submit">保存 QC 设置</button></form></div>}
       {localeOpen && (
         <div className="locale-overlay" onClick={() => setLocaleOpen(false)}>
