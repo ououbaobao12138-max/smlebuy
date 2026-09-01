@@ -1127,8 +1127,7 @@ function App() {
               >
                 <div className={`product-image ${product.tone}`}>
                   <img src={product.image} alt={product.name} loading="lazy" />
-                  <span className="product-tag">{product.tag}</span>
-                  {(product.qcAvailable || product.qcPhotos?.length) && <span className="qc-badge">QC AVAILABLE!</span>}
+                  {product.qcPhotos?.length > 0 && <span className="qc-badge">QC AVAILABLE!</span>}
                   <button
                     className={`save ${saved.includes(product.id) ? "selected" : ""}`}
                     onClick={(event) => {
