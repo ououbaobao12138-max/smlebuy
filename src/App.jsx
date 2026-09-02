@@ -138,7 +138,7 @@ const normalizeCategory = (value) => {
   if (compactCategory.includes("watch") || compactCategory.includes("手表") || compactCategory.includes("腕表")) return "Watches";
   if (compactCategory.includes("hat") || compactCategory.includes("cap") || compactCategory.includes("帽子") || compactCategory.includes("帽")) return "Hats";
   if (compactCategory.includes("downjacket") || compactCategory.includes("jacket") || compactCategory.includes("vest") || compactCategory.includes("外套") || compactCategory.includes("夹克") || compactCategory.includes("羽绒")) return "Outerwear";
-  if (["shoes", "shoe", "鞋类", "鞋子"].includes(category)) return "Footwear";
+  if (["shoes", "shoe", "鞋类", "鞋���"].includes(category)) return "Footwear";
   if (["sliders", "slides", "slippers", "拖鞋"].includes(category)) return "Footwear";
   if (["coats / jackets", "outerwear", "jackets", "外套", "夹克"].includes(category)) return "Outerwear";
   if (["hoodies", "hoodie", "tops", "上衣", "连帽衫"].includes(category)) return "Tops";
@@ -298,7 +298,11 @@ function App() {
     { id: "mika", email: "mika@northform.store", title: "客服团队", role: "Viewer", lastActive: "昨天", access: "仅订单" },
   ]);
   const [displayAgents, setDisplayAgents] = useState(() => JSON.parse(localStorage.getItem("north-form-display-agents") || "null") || SUPPORTED_AGENTS.map((agent) => agent.value));
-  const [affiliateCodes, setAffiliateCodes] = useState(() => JSON.parse(localStorage.getItem("north-form-affiliate-codes") || "null") || defaultAffiliateCodes);
+  const [affiliateCodes, setAffiliateCodes] = useState(() => {
+    const shopId = "main";
+    const stored = localStorage.getItem(`north-form-affiliate-codes-${shopId}`);
+    return stored ? JSON.parse(stored) : defaultAffiliateCodes;
+  });
   const [affiliateDraft, setAffiliateDraft] = useState(affiliateCodes);
   const isAdmin = viewPath === "/admin";
 
@@ -419,6 +423,15 @@ function App() {
     const matchedShop = shops.find((shop) => String(shop.username || "").toLowerCase() === subdomain);
     if (matchedShop) setStorefrontShopId(String(matchedShop.id));
   }, [shops]);
+
+  // 修改2：选择店铺时加载对应的联盟代码
+  useEffect(() => {
+    if (selectedStore) {
+      const stored = localStorage.getItem(`north-form-affiliate-codes-${selectedStore}`);
+      const codes = stored ? JSON.parse(stored) : defaultAffiliateCodes;
+      setAffiliateDraft(codes);
+    }
+  }, [selectedStore]);
 
   const visibleProducts = useMemo(() => {
     const visibleShopId = isAdmin ? browseShopId : storefrontShopId;
@@ -733,10 +746,21 @@ function App() {
     };
   }, [selectedProduct, affiliateCodes, displayAgents]);
   const saveAffiliateSettings = () => {
-    setAffiliateCodes(affiliateDraft);
-    localStorage.setItem("north-form-affiliate-codes", JSON.stringify(affiliateDraft));
+    if (!selectedStore) {
+      setUploadMessage("请先选择一个店铺。");
+      return;
+    }
+    // 按店铺保存
+    localStorage.setItem(`north-form-affiliate-codes-${selectedStore}`, JSON.stringify(affiliateDraft));
     localStorage.setItem("north-form-display-agents", JSON.stringify(displayAgents));
-    setUploadMessage(chinese ? "联盟代码和展示平台已保存。" : "Affiliate codes and display platforms saved.");
+    
+    // 如果是主店，也更新全局
+    if (selectedStore === "main") {
+      setAffiliateCodes(affiliateDraft);
+    }
+    
+    const shopName = shops.find(s => s.id === selectedStore)?.name || selectedStore;
+    setUploadMessage(chinese ? `店铺"${shopName}"的联盟代码和展示平台已保存。` : "Affiliate codes and display platforms saved.");
   };
   const addAccount = (event) => {
     event.preventDefault();
